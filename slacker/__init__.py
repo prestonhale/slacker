@@ -47,6 +47,7 @@ class Response(object):
         self.body = json.loads(body)
         self.successful = self.body['ok']
         self.error = self.body.get('error')
+        self.message = self.body.get('response_metadata', {}).get('messages')
 
     def __str__(self):
         return json.dumps(self.body)
@@ -96,7 +97,10 @@ class BaseAPI(object):
 
         response = Response(response.text)
         if not response.successful:
-            raise Error(response.error)
+            error = response.error
+            if response.message:
+                error = f"{error}: {response.message}"
+            raise Error(error)
 
         return response
 
@@ -981,6 +985,15 @@ class Apps(BaseAPI):
         return self._permissions
 
 
+class Dialog(BaseAPI):
+    def open(self, dialog, trigger_id):
+        return self.post('dialog.open',
+                         data={
+                             'dialog': json.dumps(dialog),
+                             'trigger_id': trigger_id
+                         })
+
+
 class IncomingWebhook(object):
     def __init__(self, url=None, timeout=DEFAULT_TIMEOUT, proxies=None):
         self.url = url
@@ -1037,6 +1050,7 @@ class Slacker(object):
         self.reactions = Reactions(**api_args)
         self.idpgroups = IDPGroups(**api_args)
         self.usergroups = UserGroups(**api_args)
+        self.dialog = Dialog(**api_args)
         self.incomingwebhook = IncomingWebhook(url=incoming_webhook_url,
                                                timeout=timeout, proxies=proxies)
 
